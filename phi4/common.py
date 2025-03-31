@@ -1,4 +1,5 @@
 import os
+import re
 import json
 
 import torch
@@ -64,8 +65,9 @@ class BaseDataset(Dataset):
         processor,
         dataset_name,
         split,
-        text_column="text",
-        audio_column="audio",
+        conversations,
+        predict,
+        audios,
         max_samples=None,
         rank=0,
         world_size=1,
@@ -81,40 +83,26 @@ class BaseDataset(Dataset):
         if world_size > 1:
             self.data = self.data.shard(num_shards=world_size, index=rank)
         self.processor = processor
-        self.instruction = "Transcribe the audio clip into text."
-        self.text_column = text_column
-        self.audio_column = audio_column
+        self.conversations = conversations
+        self.predict = predict
+        self.audios = audios
 
     def __len__(self):
         return len(self.data)
 
-
 class EvalDataset(BaseDataset):
     def __getitem__(self, idx):
-        """
-        Each example in the dataset is expected to have:
-          - '{audio_column}': a dict with keys "array" and "sampling_rate"
-          - '{text_column}': the transcription string.
-        """
         data = self.data[idx]
-        user_message = {
-            "role": "user",
-            "content": "<|audio_1|> " + self.instruction,
-        }
+        messages, predict, audios = parse_prompt(data, self.conversations, self.predict, self.audios)
         prompt = self.processor.tokenizer.apply_chat_template(
-            [user_message], tokenize=False, add_generation_prompt=True
+            [messages], tokenize=False, add_generation_prompt=True
         )
         inputs = self.processor(
             text=prompt,
-            audios=[
-                (
-                    data[self.audio_column]["array"],
-                    data[self.audio_column]["sampling_rate"],
-                )
-            ],
+            audios=audios,
             return_tensors="pt",
         )
-        answer = f"{data[self.text_column]}{ANSWER_SUFFIX}"
+        answer = f"{predict}{ANSWER_SUFFIX}"
         answer_ids = self.processor.tokenizer(answer, return_tensors="pt").input_ids
         input_ids = inputs.input_ids
         labels = answer_ids
@@ -134,8 +122,9 @@ class FinetuneDataset(BaseDataset):
         dataset_name,
         split,
         training,
-        text_column="text",
-        audio_column="audio",
+        conversations,
+        predict,
+        audios,
         max_samples=None,
         rank=0,
         world_size=1,
@@ -145,8 +134,9 @@ class FinetuneDataset(BaseDataset):
             processor,
             dataset_name,
             split,
-            text_column,
-            audio_column,
+            conversations,
+            predict,
+            audios,
             max_samples,
             rank,
             world_size,
@@ -155,30 +145,17 @@ class FinetuneDataset(BaseDataset):
         self.training = training
 
     def __getitem__(self, idx):
-        """
-        Each example in the dataset is expected to have:
-          - '{audio_column}': a dict with keys "array" and "sampling_rate"
-          - '{text_column}': the transcription string.
-        """
         data = self.data[idx]
-        user_message = {
-            "role": "user",
-            "content": "<|audio_1|> " + self.instruction,
-        }
+        messages, predict, audios = parse_prompt(data, self.conversations, self.predict, self.audios)
         prompt = self.processor.tokenizer.apply_chat_template(
-            [user_message], tokenize=False, add_generation_prompt=True
+            [messages], tokenize=False, add_generation_prompt=True
         )
         inputs = self.processor(
             text=prompt,
-            audios=[
-                (
-                    data[self.audio_column]["array"],
-                    data[self.audio_column]["sampling_rate"],
-                )
-            ],
+            audios=audios,
             return_tensors="pt",
         )
-        answer = f"{data[self.text_column]}{ANSWER_SUFFIX}"
+        answer = f"{predict}{ANSWER_SUFFIX}"
         answer_ids = self.processor.tokenizer(answer, return_tensors="pt").input_ids
         if self.training:
             input_ids = torch.cat([inputs.input_ids, answer_ids], dim=1)
@@ -195,6 +172,35 @@ class FinetuneDataset(BaseDataset):
             "audio_embed_sizes": inputs.audio_embed_sizes,
         }
 
+def parse_prompt(data, conversations, predict, audios):
+    messages = []
+    for conversation in conversations:
+        content = conversation["content"]
+        
+        for match in re.findall(r"\{(.*?)\}", content):
+            if match in data:
+                content = re.sub(rf"\{{{match}\}}", data[match], content)
+        
+        message = {
+            "role": conversation["role"],
+            "content": content
+        }
+        messages.append(message)
+
+        
+    for match in re.findall(r"\{(.*?)\}", predict):
+        if match in data:
+            predict = re.sub(rf"\{{{match}\}}", data[match], predict)
+
+    audios = ([
+            (
+                data[audio]["array"],
+                data[audio]["sampling_rate"],
+            ) for audio in audios
+        ])
+    
+
+    return messages, predict, audios
 
 # Utility functions for batching
 def pad_sequence(sequences, padding_side="right", padding_value=0):

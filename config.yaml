@@ -1,0 +1,56 @@
+stages:
+  - name: ntnu-smil/phi-4-mm-asr
+    base_model: microsoft/phi-4-multimodal-instruct
+    audios: ["audio"]
+    conversations:
+      - role: user
+        content: "<|audio_1|> Transcribe the audio clip into text."
+    predict: "{verbatim_transcription}"
+
+  - name: ntnu-smil/phi-4-mm-asr-dd
+    base_model: ntnu-smil/phi-4-mm-asr
+    audios: ["audio"]
+    conversations:
+      - role: user
+        content: "<|audio_1|> Transcribe the audio clip into text."
+      - role: assistant
+        content: "{verbatim_transcription}"
+      - role: user
+        content: "Perform disfluency detection."
+    predict: "{dd_transcription}"
+
+  - name: ntnu-smil/phi-4-mm-asr-dd-gec
+    base_model: ntnu-smil/phi-4-mm-asr-dd
+    audios: ["audio"]
+    conversations:
+      - role: user
+        content: "<|audio_1|> Transcribe the audio clip into text."
+      - role: assistant
+        content: "{verbatim_transcription}"
+      - role: user
+        content: "Perform disfluency detection."
+      - role: assistant
+        content: "{dd_transcription}"
+      - role: user
+        content: "Perform grammatical error correction."
+    predict: "{gec_transcription}"
+
+  - name: ntnu-smil/phi-4-mm-asr-dd-gec-sla
+    base_model: ntnu-smil/phi-4-mm-asr-dd-gec
+    audios: ["audio"]
+    conversations:
+      - role: user
+        content: "<|audio_1|> Transcribe the audio clip into text."
+      - role: assistant
+        content: "{verbatim_transcription}"
+      - role: user
+        content: "Perform disfluency detection."
+      - role: assistant
+        content: "{dd_transcription}"
+      - role: user
+        content: "Perform grammatical error correction."
+      - role: assistant
+        content: "{gec_transcription}"
+      - role: user
+        content: "Perform Spoken Language Assessment."
+    predict: "{cefr_score}"

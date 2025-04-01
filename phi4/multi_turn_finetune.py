@@ -107,7 +107,7 @@ def finetune(args, stage):
         lr_scheduler_type="linear",
         warmup_steps=50,
         logging_steps=10,
-        output_dir=args.output_dir,
+        output_dir=f"{args.output_dir}/{stage_name}",
         save_strategy="epoch",
         save_total_limit=3,
         save_only_model=True,

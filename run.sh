@@ -1,1 +1,1 @@
-python -m phi.multi_turn_fintune.py --use_flash_attention --push_to_hub
+python -m phi4.multi_turn_finetune --use_flash_attention --push_to_hub

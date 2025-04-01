@@ -179,7 +179,7 @@ def parse_prompt(data, conversations, predict, audios):
         
         for match in re.findall(r"\{(.*?)\}", content):
             if match in data:
-                content = re.sub(rf"\{{{match}\}}", data[match], content)
+                content = re.sub(rf"\{{{match}\}}", str(data[match]), content)
         
         message = {
             "role": conversation["role"],
@@ -187,10 +187,9 @@ def parse_prompt(data, conversations, predict, audios):
         }
         messages.append(message)
 
-        
     for match in re.findall(r"\{(.*?)\}", predict):
         if match in data:
-            predict = re.sub(rf"\{{{match}\}}", data[match], predict)
+            predict = re.sub(rf"\{{{match}\}}", str(data[match]), predict)
 
     audios = ([
             (
